@@ -138,13 +138,14 @@ detect_corruptions() {
     
     # Check for broken symlinks FIRST (most common test case)
     while IFS= read -r file; do
-        if [[ -L "$file" ]] && [[ ! -e "$file" ]]; then
+        # Double check it's a symlink and target doesn't exist
+        if [[ -h "$file" ]] && [[ ! -e "$file" ]]; then
             CORRUPTED_FILES+=("$(basename "$file")")
             FILE_PATHS+=("$file")
             FILE_REASONS+=("Broken symbolic link - target does not exist")
             FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
         fi
-    done < <(find "$SCAN_DIR" -type l 2>/dev/null)
+    done < <(find "$SCAN_DIR" -type l -xtype l 2>/dev/null)
     
     # Check for common corruption patterns in files
     while IFS= read -r file; do
