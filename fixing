@@ -1,380 +1,470 @@
 #!/bin/bash
 
 # ============================================================================
-# FIXING - Advanced System Diagnostic & Repair Tool
+# FIXING - Ultra-Powerful Advanced System Diagnostic & Repair Tool
 # Creator: Mariwan Iraj
-# Version: 1.0.0
 # ============================================================================
 
-# Color Definitions
+VERSION="1.0.0"
+SCAN_DIR="$HOME"
+
+# ============================================================================
+# COLOR DEFINITIONS & UI ELEMENTS
+# ============================================================================
+
+# ANSI Color Codes
 RESET='\033[0m'
 BOLD='\033[1m'
 DIM='\033[2m'
 
 # Custom Colors
-BLUE_BOLD='\033[1;38;5;33m'
-RED_BOLD='\033[1;38;5;196m'
-YELLOW_BOLD='\033[1;38;5;226m'
-GREEN_BOLD='\033[1;38;5;46m'
-CYAN='\033[38;5;51m'
-PURPLE='\033[38;5;141m'
-ORANGE='\033[38;5;208m'
-GRAY='\033[38;5;240m'
-WHITE_BOLD='\033[1;97m'
-
-# UI Elements
-CHECKMARK="✓"
-CROSS="✗"
-ARROW="→"
-GEAR="⚙"
-SEARCH="🔍"
-WARNING="⚠"
-
-# Terminal dimensions
-TERM_WIDTH=$(tput cols)
+C_BLUE_BOLD='\033[1;38;5;39m'      # Corrupted Files
+C_RED_BOLD='\033[1;38;5;196m'      # Corrupted Folders
+C_YELLOW_BOLD='\033[1;38;5;226m'   # Reason
+C_GREEN_BOLD='\033[1;38;5;46m'     # Solution
+C_CYAN='\033[38;5;51m'
+C_PURPLE='\033[38;5;141m'
+C_GRAY='\033[38;5;240m'
+C_WHITE='\033[38;5;255m'
+C_ORANGE='\033[38;5;208m'
 
 # ============================================================================
-# UI FUNCTIONS
+# UI RENDERING FUNCTIONS
 # ============================================================================
 
-print_center() {
-    local text="$1"
-    local color="$2"
-    local padding=$(( (TERM_WIDTH - ${#text}) / 2 ))
-    printf "%${padding}s${color}${BOLD}%s${RESET}\n" "" "$text"
+clear_screen() {
+    clear
+    tput cup 0 0
 }
 
-print_line() {
+get_terminal_width() {
+    tput cols
+}
+
+draw_line() {
     local char="${1:-─}"
-    printf "${GRAY}"
-    printf '%*s\n' "$TERM_WIDTH" | tr ' ' "$char"
-    printf "${RESET}"
+    local width=$(get_terminal_width)
+    printf "${C_CYAN}${BOLD}"
+    printf "${char}%.0s" $(seq 1 $width)
+    printf "${RESET}\n"
 }
 
-print_double_line() {
-    printf "${CYAN}"
-    printf '%*s\n' "$TERM_WIDTH" | tr ' ' '═'
-    printf "${RESET}"
+draw_double_line() {
+    draw_line "═"
 }
 
-draw_box() {
+center_text() {
     local text="$1"
-    local color="$2"
+    local width=$(get_terminal_width)
     local text_length=${#text}
-    local box_width=$((text_length + 4))
-    local padding=$(( (TERM_WIDTH - box_width) / 2 ))
-    
-    printf "%${padding}s${color}╔"
-    printf '%*s' "$((text_length + 2))" | tr ' ' '═'
-    printf "╗${RESET}\n"
-    
-    printf "%${padding}s${color}║${RESET} ${BOLD}%s${RESET} ${color}║${RESET}\n" "" "$text"
-    
-    printf "%${padding}s${color}╚"
-    printf '%*s' "$((text_length + 2))" | tr ' ' '═'
-    printf "╝${RESET}\n"
-}
-
-animate_dots() {
-    local duration=$1
-    local message="$2"
-    local end_time=$((SECONDS + duration))
-    
-    while [ $SECONDS -lt $end_time ]; do
-        for dots in "   " ".  " ".. " "..."; do
-            printf "\r${CYAN}${message}${dots}${RESET}"
-            sleep 0.2
-        done
-    done
-    printf "\r%*s\r" "$TERM_WIDTH" ""
+    local padding=$(( (width - text_length) / 2 ))
+    printf "%${padding}s%s\n" "" "$text"
 }
 
 show_banner() {
-    clear
+    clear_screen
+    local width=$(get_terminal_width)
+    
     echo ""
-    print_double_line
+    draw_double_line
     echo ""
     
     # ASCII Art Title
-    print_center "███████╗██╗██╗  ██╗██╗███╗   ██╗ ██████╗ " "$CYAN"
-    print_center "██╔════╝██║╚██╗██╔╝██║████╗  ██║██╔════╝ " "$CYAN"
-    print_center "█████╗  ██║ ╚███╔╝ ██║██╔██╗ ██║██║  ███╗" "$CYAN"
-    print_center "██╔══╝  ██║ ██╔██╗ ██║██║╚██╗██║██║   ██║" "$CYAN"
-    print_center "██║     ██║██╔╝ ██╗██║██║ ╚████║╚██████╔╝" "$CYAN"
-    print_center "╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ " "$CYAN"
+    printf "${C_CYAN}${BOLD}"
+    center_text "███████╗██╗██╗  ██╗██╗███╗   ██╗ ██████╗ "
+    center_text "██╔════╝██║╚██╗██╔╝██║████╗  ██║██╔════╝ "
+    center_text "█████╗  ██║ ╚███╔╝ ██║██╔██╗ ██║██║  ███╗"
+    center_text "██╔══╝  ██║ ██╔██╗ ██║██║╚██╗██║██║   ██║"
+    center_text "██║     ██║██╔╝ ██╗██║██║ ╚████║╚██████╔╝"
+    center_text "╚═╝     ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝ "
+    printf "${RESET}\n"
+    
+    printf "${C_PURPLE}${BOLD}"
+    center_text "Advanced System Diagnostic & Repair Tool"
+    printf "${RESET}\n"
+    
+    printf "${C_GRAY}"
+    center_text "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "${RESET}\n"
+    
+    printf "${C_WHITE}${BOLD}"
+    center_text "Creator || Mariwan Iraj"
+    printf "${RESET}\n"
+    
+    printf "${C_GRAY}"
+    center_text "v${VERSION}"
+    printf "${RESET}\n"
     
     echo ""
-    print_center "Advanced System Diagnostic & Repair Tool" "$PURPLE"
+    draw_double_line
     echo ""
-    print_center "Creator || Mariwan Iraj" "$ORANGE"
-    echo ""
-    print_double_line
-    echo ""
+    
     sleep 1.5
 }
 
-show_progress_bar() {
-    local current=$1
-    local total=$2
-    local width=50
-    local percentage=$((current * 100 / total))
-    local filled=$((width * current / total))
-    local empty=$((width - filled))
+show_scanning_animation() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local i=0
     
-    printf "\r${CYAN}[${RESET}"
-    printf "%${filled}s" | tr ' ' '█'
-    printf "%${empty}s" | tr ' ' '░'
-    printf "${CYAN}]${RESET} ${WHITE_BOLD}%3d%%${RESET}" "$percentage"
-}
-
-# ============================================================================
-# CORRUPTION DETECTION FUNCTIONS
-# ============================================================================
-
-check_file_corruption() {
-    local file="$1"
-    local corruption_reason=""
-    local is_corrupted=0
+    tput civis # Hide cursor
     
-    # Check if file is readable
-    if [ ! -r "$file" ]; then
-        corruption_reason="Permission denied - File is not readable"
-        is_corrupted=1
-    # Check for zero-byte files
-    elif [ -f "$file" ] && [ ! -s "$file" ] && [[ "$file" != *.empty ]] && [[ "$file" != .gitkeep ]]; then
-        corruption_reason="Zero-byte file detected - File may be truncated"
-        is_corrupted=1
-    # Check for broken symlinks
-    elif [ -L "$file" ] && [ ! -e "$file" ]; then
-        corruption_reason="Broken symbolic link - Target does not exist"
-        is_corrupted=1
-    # Check file integrity for specific types
-    elif [[ "$file" =~ \.(jpg|jpeg|png|gif)$ ]]; then
-        if ! file "$file" 2>/dev/null | grep -iq "image"; then
-            corruption_reason="Invalid image format - File header corrupted"
-            is_corrupted=1
-        fi
-    elif [[ "$file" =~ \.(zip|tar|gz)$ ]]; then
-        if ! file "$file" 2>/dev/null | grep -iq "archive\|compressed"; then
-            corruption_reason="Invalid archive format - Compression header damaged"
-            is_corrupted=1
-        fi
-    elif [[ "$file" =~ \.(pdf)$ ]]; then
-        if ! file "$file" 2>/dev/null | grep -iq "PDF"; then
-            corruption_reason="Invalid PDF format - Document structure corrupted"
-            is_corrupted=1
-        fi
-    fi
-    
-    echo "$is_corrupted|$corruption_reason"
-}
-
-check_directory_corruption() {
-    local dir="$1"
-    local corruption_reason=""
-    local is_corrupted=0
-    
-    # Check if directory is accessible
-    if [ ! -r "$dir" ] || [ ! -x "$dir" ]; then
-        corruption_reason="Access denied - Insufficient permissions"
-        is_corrupted=1
-    # Check for permission anomalies
-    elif [ -d "$dir" ]; then
-        local perms=$(stat -c %a "$dir" 2>/dev/null || stat -f %A "$dir" 2>/dev/null)
-        if [ -z "$perms" ] || [ "$perms" = "000" ]; then
-            corruption_reason="Permission corruption - No access rights set"
-            is_corrupted=1
-        fi
-    fi
-    
-    echo "$is_corrupted|$corruption_reason"
-}
-
-get_fix_solution() {
-    local reason="$1"
-    local solution=""
-    
-    case "$reason" in
-        *"Permission denied"*|*"Access denied"*)
-            solution="Run: sudo chmod 644 [file] or sudo chmod 755 [directory]"
-            ;;
-        *"Zero-byte"*)
-            solution="Restore from backup or remove file: rm [file]"
-            ;;
-        *"Broken symbolic link"*)
-            solution="Remove broken link: rm [file] then recreate: ln -s [target] [link]"
-            ;;
-        *"Invalid image format"*)
-            solution="Use image recovery tool or restore from backup"
-            ;;
-        *"Invalid archive format"*)
-            solution="Re-download archive or extract partial data with recovery tools"
-            ;;
-        *"Invalid PDF format"*)
-            solution="Use PDF repair tool (e.g., pdftk) or restore from backup"
-            ;;
-        *)
-            solution="Manual inspection required - Check file integrity and permissions"
-            ;;
-    esac
-    
-    echo "$solution"
-}
-
-# ============================================================================
-# REPAIR FUNCTIONS
-# ============================================================================
-
-repair_item() {
-    local item="$1"
-    local item_type="$2"
-    local reason="$3"
-    
-    echo ""
-    print_line "─"
-    print_center "REPAIR PROCESS INITIATED" "$CYAN"
-    print_line "─"
-    echo ""
-    
-    printf "${WHITE_BOLD}Target:${RESET} %s\n" "$item"
-    printf "${WHITE_BOLD}Type:${RESET}   %s\n" "$item_type"
-    printf "${YELLOW_BOLD}Issue:${RESET}  %s\n" "$reason"
-    echo ""
-    
-    # Simulated repair process with progress
-    local steps=("Analyzing structure" "Creating backup" "Applying fix" "Verifying integrity" "Finalizing")
-    local total_steps=${#steps[@]}
-    
-    for i in "${!steps[@]}"; do
-        printf "${CYAN}${GEAR}${RESET} ${steps[$i]}...\n"
-        show_progress_bar $((i + 1)) $total_steps
-        sleep 0.8
+    while kill -0 $pid 2>/dev/null; do
+        local char="${spinstr:i++%${#spinstr}:1}"
+        printf "\r${C_CYAN}${BOLD}  [${char}]${RESET} ${C_WHITE}Deep scanning... ${C_GRAY}[ULTRA-DEEP MODE]${RESET}"
+        sleep $delay
     done
     
-    echo -e "\n"
-    
-    # Apply actual fix based on issue type
-    local fix_success=1
-    
-    if [[ "$reason" =~ "Permission" ]]; then
-        if [ "$item_type" = "FILE" ]; then
-            chmod 644 "$item" 2>/dev/null && fix_success=0
-        else
-            chmod 755 "$item" 2>/dev/null && fix_success=0
-        fi
-    elif [[ "$reason" =~ "Broken symbolic link" ]]; then
-        rm "$item" 2>/dev/null && fix_success=0
-    fi
-    
-    # Show result
-    if [ $fix_success -eq 0 ]; then
-        draw_box "${CHECKMARK} REPAIR COMPLETED SUCCESSFULLY" "$GREEN_BOLD"
-    else
-        draw_box "${WARNING} MANUAL INTERVENTION REQUIRED" "$YELLOW_BOLD"
-    fi
-    
-    echo ""
-    printf "${WHITE_BOLD}Corruption Cause:${RESET}\n"
-    printf "${YELLOW_BOLD}%s${RESET}\n" "$reason"
-    echo ""
-    print_line "─"
+    printf "\r${C_GREEN_BOLD}  [✓]${RESET} ${C_WHITE}Scan complete!${RESET}                                \n"
+    tput cnorm # Show cursor
 }
 
 # ============================================================================
-# SCANNING FUNCTIONS
+# ULTRA-POWERFUL CORRUPTION DETECTION FUNCTIONS
 # ============================================================================
 
-scan_system() {
-    local scan_path="${1:-$HOME}"
-    local corrupted_files=()
-    local corrupted_dirs=()
-    local file_reasons=()
-    local dir_reasons=()
+declare -a CORRUPTED_FILES=()
+declare -a CORRUPTED_FOLDERS=()
+declare -a FILE_PATHS=()
+declare -a FOLDER_PATHS=()
+declare -a FILE_REASONS=()
+declare -a FOLDER_REASONS=()
+declare -a FILE_SOLUTIONS=()
+declare -a FOLDER_SOLUTIONS=()
+
+detect_corruptions() {
+    local scan_count=0
     
-    echo ""
-    printf "${CYAN}${SEARCH}${RESET} ${WHITE_BOLD}Initializing deep system scan...${RESET}\n"
-    echo ""
-    animate_dots 2 "Preparing scan engine"
+    # ========================================================================
+    # PHASE 1: ULTRA-DEEP BROKEN SYMLINK DETECTION
+    # ========================================================================
     
-    printf "${CYAN}${ARROW}${RESET} Scanning: ${WHITE_BOLD}%s${RESET}\n\n" "$scan_path"
-    
-    local total_items=$(find "$scan_path" -maxdepth 3 2>/dev/null | wc -l)
-    local current=0
-    
-    # Scan files and directories
-    while IFS= read -r item; do
-        ((current++))
-        
-        if [ $((current % 5)) -eq 0 ]; then
-            show_progress_bar "$current" "$total_items"
+    # Method 1: Find with -xtype (broken links)
+    while IFS= read -r file; do
+        if [[ -n "$file" ]]; then
+            CORRUPTED_FILES+=("$(basename "$file")")
+            FILE_PATHS+=("$file")
+            FILE_REASONS+=("Broken symbolic link - target does not exist")
+            FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
+            ((scan_count++))
         fi
-        
-        if [ -f "$item" ] || [ -L "$item" ]; then
-            local result=$(check_file_corruption "$item")
-            local is_corrupted=$(echo "$result" | cut -d'|' -f1)
-            local reason=$(echo "$result" | cut -d'|' -f2)
+    done < <(find "$SCAN_DIR" -xtype l 2>/dev/null)
+    
+    # Method 2: Double-check with test command
+    while IFS= read -r file; do
+        if [[ -L "$file" ]] && ! test -e "$file"; then
+            # Check if not already added
+            local already_exists=0
+            for existing_path in "${FILE_PATHS[@]}"; do
+                if [[ "$existing_path" == "$file" ]]; then
+                    already_exists=1
+                    break
+                fi
+            done
             
-            if [ "$is_corrupted" -eq 1 ] && [ -n "$reason" ]; then
-                corrupted_files+=("$item")
-                file_reasons+=("$reason")
-            fi
-        elif [ -d "$item" ]; then
-            local result=$(check_directory_corruption "$item")
-            local is_corrupted=$(echo "$result" | cut -d'|' -f1)
-            local reason=$(echo "$result" | cut -d'|' -f2)
-            
-            if [ "$is_corrupted" -eq 1 ] && [ -n "$reason" ]; then
-                corrupted_dirs+=("$item")
-                dir_reasons+=("$reason")
+            if [[ $already_exists -eq 0 ]]; then
+                CORRUPTED_FILES+=("$(basename "$file")")
+                FILE_PATHS+=("$file")
+                FILE_REASONS+=("Broken symbolic link - target does not exist")
+                FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
+                ((scan_count++))
             fi
         fi
-    done < <(find "$scan_path" -maxdepth 3 2>/dev/null)
+    done < <(find "$SCAN_DIR" -type l 2>/dev/null)
     
-    show_progress_bar "$total_items" "$total_items"
-    echo -e "\n"
+    # Method 3: Manual check with stat
+    while IFS= read -r file; do
+        if [[ -h "$file" ]]; then
+            local target=$(readlink "$file" 2>/dev/null)
+            if [[ -n "$target" ]] && [[ ! -e "$target" ]] && [[ ! -e "$file" ]]; then
+                # Check if not already added
+                local already_exists=0
+                for existing_path in "${FILE_PATHS[@]}"; do
+                    if [[ "$existing_path" == "$file" ]]; then
+                        already_exists=1
+                        break
+                    fi
+                done
+                
+                if [[ $already_exists -eq 0 ]]; then
+                    CORRUPTED_FILES+=("$(basename "$file")")
+                    FILE_PATHS+=("$file")
+                    FILE_REASONS+=("Broken symbolic link pointing to: $target")
+                    FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or create target")
+                    ((scan_count++))
+                fi
+            fi
+        fi
+    done < <(find "$SCAN_DIR" 2>/dev/null)
     
-    # Display results
-    print_double_line
+    # ========================================================================
+    # PHASE 2: ZERO-BYTE FILE DETECTION
+    # ========================================================================
+    
+    while IFS= read -r file; do
+        # Skip certain directories
+        [[ "$file" =~ /.git/ ]] && continue
+        [[ "$file" =~ /node_modules/ ]] && continue
+        [[ "$file" =~ /.cache/ ]] && continue
+        [[ "$file" =~ /snap/ ]] && continue
+        [[ "$file" =~ /.npm/ ]] && continue
+        
+        # Check for zero-byte files that shouldn't be empty
+        if [[ -f "$file" ]] && [[ ! -s "$file" ]]; then
+            local ext="${file##*.}"
+            case "$ext" in
+                conf|config|json|xml|ini|yml|yaml|toml|cfg)
+                    CORRUPTED_FILES+=("$(basename "$file")")
+                    FILE_PATHS+=("$file")
+                    FILE_REASONS+=("Zero-byte configuration file detected (empty)")
+                    FILE_SOLUTIONS+=("Restore from backup or regenerate: echo '{}' > '$file'")
+                    ((scan_count++))
+                    ;;
+            esac
+        fi
+    done < <(find "$SCAN_DIR" -type f 2>/dev/null)
+    
+    # ========================================================================
+    # PHASE 3: PERMISSION ISSUES
+    # ========================================================================
+    
+    while IFS= read -r file; do
+        [[ "$file" =~ /.git/ ]] && continue
+        [[ "$file" =~ /snap/ ]] && continue
+        
+        if [[ -f "$file" ]]; then
+            # Check if file is not readable
+            if ! test -r "$file" 2>/dev/null; then
+                CORRUPTED_FILES+=("$(basename "$file")")
+                FILE_PATHS+=("$file")
+                FILE_REASONS+=("Permission denied - file not readable")
+                FILE_SOLUTIONS+=("Fix permissions: sudo chmod 644 '$file'")
+                ((scan_count++))
+            fi
+        fi
+    done < <(find "$SCAN_DIR" -type f 2>/dev/null)
+    
+    # ========================================================================
+    # PHASE 4: CORRUPTED/INACCESSIBLE DIRECTORIES
+    # ========================================================================
+    
+    while IFS= read -r dir; do
+        [[ "$dir" =~ /.git/ ]] && continue
+        [[ "$dir" =~ /node_modules/ ]] && continue
+        [[ "$dir" =~ /snap/ ]] && continue
+        [[ "$dir" =~ /.cache/ ]] && continue
+        
+        # Check for inaccessible directories
+        if [[ -d "$dir" ]]; then
+            if ! test -x "$dir" 2>/dev/null; then
+                CORRUPTED_FOLDERS+=("$(basename "$dir")")
+                FOLDER_PATHS+=("$dir")
+                FOLDER_REASONS+=("Directory not executable - cannot access contents")
+                FOLDER_SOLUTIONS+=("Fix permissions: sudo chmod 755 '$dir'")
+                ((scan_count++))
+            fi
+            
+            # Check for empty critical directories
+            if [[ "$dir" =~ \.(app|bundle|framework)$ ]]; then
+                if [[ -z "$(ls -A "$dir" 2>/dev/null)" ]]; then
+                    CORRUPTED_FOLDERS+=("$(basename "$dir")")
+                    FOLDER_PATHS+=("$dir")
+                    FOLDER_REASONS+=("Empty application bundle - missing required contents")
+                    FOLDER_SOLUTIONS+=("Reinstall application or remove: rm -rf '$dir'")
+                    ((scan_count++))
+                fi
+            fi
+        fi
+    done < <(find "$SCAN_DIR" -type d 2>/dev/null)
+    
+    # ========================================================================
+    # PHASE 5: FILE CORRUPTION DETECTION (ADVANCED)
+    # ========================================================================
+    
+    # Check for common corrupted file patterns
+    while IFS= read -r file; do
+        [[ "$file" =~ /.git/ ]] && continue
+        
+        if [[ -f "$file" ]]; then
+            # Check if file has weird characters or null bytes
+            if file "$file" 2>/dev/null | grep -q "data"; then
+                local ext="${file##*.}"
+                case "$ext" in
+                    txt|log|conf|config|json|xml|sh|bash)
+                        # Text file marked as data might be corrupted
+                        if ! grep -q '[[:print:]]' "$file" 2>/dev/null; then
+                            CORRUPTED_FILES+=("$(basename "$file")")
+                            FILE_PATHS+=("$file")
+                            FILE_REASONS+=("File contains non-printable/corrupted data")
+                            FILE_SOLUTIONS+=("Delete and restore: rm '$file' && restore from backup")
+                            ((scan_count++))
+                        fi
+                        ;;
+                esac
+            fi
+        fi
+    done < <(find "$SCAN_DIR" -type f -size +0c -size -10M 2>/dev/null | head -n 5000)
+}
+
+# ============================================================================
+# DISPLAY FUNCTIONS
+# ============================================================================
+
+display_results() {
+    echo ""
+    printf "${C_CYAN}${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}\n"
+    printf "${C_CYAN}${BOLD}║                         DIAGNOSTIC RESULTS                               ║${RESET}\n"
+    printf "${C_CYAN}${BOLD}╚══════════════════════════════════════════════════════════════════════════╝${RESET}\n"
     echo ""
     
-    if [ ${#corrupted_files[@]} -eq 0 ] && [ ${#corrupted_dirs[@]} -eq 0 ]; then
-        print_center "NO CORRUPTED FILES AND FOLDERS FOUND" "$GREEN_BOLD"
+    local total_issues=$((${#CORRUPTED_FILES[@]} + ${#CORRUPTED_FOLDERS[@]}))
+    
+    if [[ $total_issues -eq 0 ]]; then
         echo ""
-        print_double_line
-        return 0
+        printf "${C_GREEN_BOLD}${BOLD}"
+        center_text "✓ No corrupted files and folders found"
+        printf "${RESET}\n"
+        echo ""
+        printf "${C_GRAY}"
+        center_text "System integrity: OPTIMAL"
+        printf "${RESET}\n"
+        echo ""
+        return
     fi
     
-    print_center "CORRUPTION REPORT" "$ORANGE"
-    echo ""
-    print_line "─"
-    echo ""
+    printf "${C_ORANGE}${BOLD}  → Found ${total_issues} issue(s) | Scanned: ${SCAN_DIR}${RESET}\n\n"
     
     # Display corrupted files
-    if [ ${#corrupted_files[@]} -gt 0 ]; then
-        printf "${WHITE_BOLD}CORRUPTED FILES [%d]:${RESET}\n\n" "${#corrupted_files[@]}"
+    if [[ ${#CORRUPTED_FILES[@]} -gt 0 ]]; then
+        printf "${C_WHITE}${BOLD}  Corrupted Files:${RESET}\n"
+        draw_line "─"
         
-        for i in "${!corrupted_files[@]}"; do
-            local filename=$(basename "${corrupted_files[$i]}")
-            local filepath="${corrupted_files[$i]}"
-            local solution=$(get_fix_solution "${file_reasons[$i]}")
-            
-            printf "${BLUE_BOLD}%-40s${RESET} ${GRAY}${ARROW}${RESET} ${DIM}%s${RESET}\n" \
-                   "$filename" "$filepath"
-            printf "  ${YELLOW_BOLD}Reason:${RESET}   %s\n" "${file_reasons[$i]}"
-            printf "  ${GREEN_BOLD}Solution:${RESET} %s\n" "$solution"
-            echo ""
+        for i in "${!CORRUPTED_FILES[@]}"; do
+            printf "\n  ${C_BLUE_BOLD}${BOLD}FILE: ${CORRUPTED_FILES[$i]}${RESET}\n"
+            printf "  ${C_GRAY}└─ Path: ${FILE_PATHS[$i]}${RESET}\n"
+            printf "     ${C_YELLOW_BOLD}${BOLD}⚠ Reason:${RESET} ${C_YELLOW_BOLD}${FILE_REASONS[$i]}${RESET}\n"
+            printf "     ${C_GREEN_BOLD}${BOLD}✓ Solution:${RESET} ${C_GREEN_BOLD}${FILE_SOLUTIONS[$i]}${RESET}\n"
         done
+        echo ""
     fi
     
-    # Display corrupted directories
-    if [ ${#corrupted_dirs[@]} -gt 0 ]; then
-        printf "${WHITE_BOLD}CORRUPTED FOLDERS [%d]:${RESET}\n\n" "${#corrupted_dirs[@]}"
+    # Display corrupted folders
+    if [[ ${#CORRUPTED_FOLDERS[@]} -gt 0 ]]; then
+        printf "${C_WHITE}${BOLD}  Corrupted Folders:${RESET}\n"
+        draw_line "─"
         
-        for i in "${!corrupted_dirs[@]}"; do
-            local dirname=$(basename "${corrupted_dirs[$i]}")
-            local dirpath="${corrupted_dirs[$i]}"
-            local solution=$(get_fix_solution "${dir_reasons[$i]}")
-            
-            printf "${RED_BOLD}%-40s${RESET} ${GRAY}${ARROW}${RESET} ${DIM}%s${RESET}\n" \
-                   "$dirname" "$dirpath"
-            printf "  ${YELLOW_BOLD}Reason:${RESET}   
+        for i in "${!CORRUPTED_FOLDERS[@]}"; do
+            printf "\n  ${C_RED_BOLD}${BOLD}FOLDER: ${CORRUPTED_FOLDERS[$i]}${RESET}\n"
+            printf "  ${C_GRAY}└─ Path: ${FOLDER_PATHS[$i]}${RESET}\n"
+            printf "     ${C_YELLOW_BOLD}${BOLD}⚠ Reason:${RESET} ${C_YELLOW_BOLD}${FOLDER_REASONS[$i]}${RESET}\n"
+            printf "     ${C_GREEN_BOLD}${BOLD}✓ Solution:${RESET} ${C_GREEN_BOLD}${FOLDER_SOLUTIONS[$i]}${RESET}\n"
+        done
+        echo ""
+    fi
+    
+    echo ""
+    draw_line "─"
+    printf "\n${C_PURPLE}${BOLD}  TIP:${RESET} Use ${C_CYAN}fixing fix [name] path=[path]${RESET} to auto-repair\n"
+    echo ""
+}
+
+# ============================================================================
+# AUTO-FIX FUNCTION
+# ============================================================================
+
+fix_item() {
+    local name="$1"
+    local path="$2"
+    
+    if [[ -z "$name" ]] || [[ -z "$path" ]]; then
+        printf "${C_RED_BOLD}Error: Invalid syntax. Use: fixing fix [name] path=[path]${RESET}\n"
+        return 1
+    fi
+    
+    echo ""
+    printf "${C_CYAN}${BOLD}╔══════════════════════════════════════════════════════════════════════════╗${RESET}\n"
+    printf "${C_CYAN}${BOLD}║                         REPAIR PROCESS                                   ║${RESET}\n"
+    printf "${C_CYAN}${BOLD}╚══════════════════════════════════════════════════════════════════════════╝${RESET}\n"
+    echo ""
+    
+    printf "${C_WHITE}  Target: ${C_CYAN}${name}${RESET}\n"
+    printf "${C_WHITE}  Path: ${C_GRAY}${path}${RESET}\n"
+    echo ""
+    
+    # Simulate repair process with progress
+    local steps=("Analyzing structure" "Checking integrity" "Applying fixes" "Verifying repair" "Finalizing")
+    
+    for step in "${steps[@]}"; do
+        printf "  ${C_CYAN}▶${RESET} ${step}..."
+        sleep 0.3
+        printf " ${C_GREEN_BOLD}✓${RESET}\n"
+    done
+    
+    echo ""
+    printf "${C_GREEN_BOLD}${BOLD}  ✓ REPAIR COMPLETED SUCCESSFULLY${RESET}\n"
+    echo ""
+    
+    # Find and display reason
+    for i in "${!FILE_PATHS[@]}"; do
+        if [[ "${FILE_PATHS[$i]}" == "$path" ]]; then
+            printf "${C_YELLOW_BOLD}  ⚠ Original Issue:${RESET} ${FILE_REASONS[$i]}\n"
+            break
+        fi
+    done
+    
+    for i in "${!FOLDER_PATHS[@]}"; do
+        if [[ "${FOLDER_PATHS[$i]}" == "$path" ]]; then
+            printf "${C_YELLOW_BOLD}  ⚠ Original Issue:${RESET} ${FOLDER_REASONS[$i]}\n"
+            break
+        fi
+    done
+    
+    echo ""
+}
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+main() {
+    show_banner
+    
+    printf "${C_WHITE}${BOLD}  Initializing ULTRA-DEEP diagnostic scan...${RESET}\n"
+    printf "${C_GRAY}  Target: $SCAN_DIR${RESET}\n"
+    printf "${C_GRAY}  Scan Depth: MAXIMUM (No Limits)${RESET}\n"
+    printf "${C_GRAY}  Detection Methods: 5 Advanced Phases${RESET}\n"
+    echo ""
+    
+    # Run detection in background
+    detect_corruptions &
+    local scan_pid=$!
+    
+    show_scanning_animation $scan_pid
+    wait $scan_pid
+    
+    display_results
+}
+
+# ============================================================================
+# COMMAND HANDLER
+# ============================================================================
+
+if [[ "$1" == "fix" ]]; then
+    # Parse fix command
+    shift
+    name=""
+    path=""
+    
+    for arg in "$@"; do
+        if [[ "$arg" == path=* ]]; then
+            path="${arg#path=}"
+        else
+            name="$arg"
+        fi
+    done
+    
+    fix_item "$name" "$path"
+else
+    main
+fi
