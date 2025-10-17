@@ -288,19 +288,95 @@ fix_item() {
     printf "${C_WHITE}  Path: ${C_GRAY}${path}${RESET}\n"
     echo ""
     
-    # Actual fix operations
+    local fixed=0
+    
+    # Fix broken symlinks
     if [[ -L "$path" ]] && [[ ! -e "$path" ]]; then
         printf "  ${C_CYAN}▶${RESET} Removing broken symlink..."
         rm -f "$path" 2>/dev/null
         if [[ $? -eq 0 ]]; then
             printf " ${C_GREEN_BOLD}✓${RESET}\n"
+            fixed=1
+        else
+            printf " ${C_RED_BOLD}✗${RESET}\n"
+        fi
+    fi
+    
+    # Fix zero-byte config files
+    if [[ -f "$path" ]] && [[ ! -s "$path" ]]; then
+        case "${path##*.}" in
+            json)
+                printf "  ${C_CYAN}▶${RESET} Regenerating JSON config..."
+                echo '{}' > "$path" 2>/dev/null
+                if [[ $? -eq 0 ]]; then
+                    printf " ${C_GREEN_BOLD}✓${RESET}\n"
+                    fixed=1
+                else
+                    printf " ${C_RED_BOLD}✗${RESET}\n"
+                fi
+                ;;
+            conf|config|ini|cfg)
+                printf "  ${C_CYAN}▶${RESET} Regenerating config file..."
+                echo '# Configuration file' > "$path" 2>/dev/null
+                if [[ $? -eq 0 ]]; then
+                    printf " ${C_GREEN_BOLD}✓${RESET}\n"
+                    fixed=1
+                else
+                    printf " ${C_RED_BOLD}✗${RESET}\n"
+                fi
+                ;;
+            xml)
+                printf "  ${C_CYAN}▶${RESET} Regenerating XML config..."
+                echo '<?xml version="1.0" encoding="UTF-8"?>' > "$path" 2>/dev/null
+                if [[ $? -eq 0 ]]; then
+                    printf " ${C_GREEN_BOLD}✓${RESET}\n"
+                    fixed=1
+                else
+                    printf " ${C_RED_BOLD}✗${RESET}\n"
+                fi
+                ;;
+            yml|yaml)
+                printf "  ${C_CYAN}▶${RESET} Regenerating YAML config..."
+                echo '# YAML configuration' > "$path" 2>/dev/null
+                if [[ $? -eq 0 ]]; then
+                    printf " ${C_GREEN_BOLD}✓${RESET}\n"
+                    fixed=1
+                else
+                    printf " ${C_RED_BOLD}✗${RESET}\n"
+                fi
+                ;;
+        esac
+    fi
+    
+    # Fix permission issues
+    if [[ -f "$path" ]] && ! test -r "$path" 2>/dev/null; then
+        printf "  ${C_CYAN}▶${RESET} Fixing file permissions..."
+        chmod 644 "$path" 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+            printf " ${C_GREEN_BOLD}✓${RESET}\n"
+            fixed=1
+        else
+            printf " ${C_RED_BOLD}✗${RESET}\n"
+        fi
+    fi
+    
+    if [[ -d "$path" ]] && ! test -x "$path" 2>/dev/null; then
+        printf "  ${C_CYAN}▶${RESET} Fixing directory permissions..."
+        chmod 755 "$path" 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+            printf " ${C_GREEN_BOLD}✓${RESET}\n"
+            fixed=1
         else
             printf " ${C_RED_BOLD}✗${RESET}\n"
         fi
     fi
     
     echo ""
-    printf "${C_GREEN_BOLD}${BOLD}  ✓ REPAIR COMPLETED${RESET}\n"
+    if [[ $fixed -eq 1 ]]; then
+        printf "${C_GREEN_BOLD}${BOLD}  ✓ REPAIR COMPLETED SUCCESSFULLY${RESET}\n"
+    else
+        printf "${C_ORANGE}${BOLD}  ⚠ No repairs needed or unable to fix${RESET}\n"
+    fi
     echo ""
 }
 
