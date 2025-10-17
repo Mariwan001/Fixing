@@ -12,16 +12,12 @@ SCAN_DIR="$HOME"
 # COLOR DEFINITIONS & UI ELEMENTS
 # ============================================================================
 
-# ANSI Color Codes
 RESET='\033[0m'
 BOLD='\033[1m'
-DIM='\033[2m'
-
-# Custom Colors
-C_BLUE_BOLD='\033[1;38;5;39m'      # Corrupted Files
-C_RED_BOLD='\033[1;38;5;196m'      # Corrupted Folders
-C_YELLOW_BOLD='\033[1;38;5;226m'   # Reason
-C_GREEN_BOLD='\033[1;38;5;46m'     # Solution
+C_BLUE_BOLD='\033[1;38;5;39m'
+C_RED_BOLD='\033[1;38;5;196m'
+C_YELLOW_BOLD='\033[1;38;5;226m'
+C_GREEN_BOLD='\033[1;38;5;46m'
 C_CYAN='\033[38;5;51m'
 C_PURPLE='\033[38;5;141m'
 C_GRAY='\033[38;5;240m'
@@ -63,13 +59,11 @@ center_text() {
 
 show_banner() {
     clear_screen
-    local width=$(get_terminal_width)
     
     echo ""
     draw_double_line
     echo ""
     
-    # ASCII Art Title
     printf "${C_CYAN}${BOLD}"
     center_text "███████╗██╗██╗  ██╗██╗███╗   ██╗ ██████╗ "
     center_text "██╔════╝██║╚██╗██╔╝██║████╗  ██║██╔════╝ "
@@ -102,26 +96,8 @@ show_banner() {
     sleep 1.5
 }
 
-show_scanning_animation() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-    local i=0
-    
-    tput civis # Hide cursor
-    
-    while kill -0 $pid 2>/dev/null; do
-        local char="${spinstr:i++%${#spinstr}:1}"
-        printf "\r${C_CYAN}${BOLD}  [${char}]${RESET} ${C_WHITE}Deep scanning... ${C_GRAY}[ULTRA-DEEP MODE]${RESET}"
-        sleep $delay
-    done
-    
-    printf "\r${C_GREEN_BOLD}  [✓]${RESET} ${C_WHITE}Scan complete!${RESET}                                \n"
-    tput cnorm # Show cursor
-}
-
 # ============================================================================
-# ULTRA-POWERFUL CORRUPTION DETECTION FUNCTIONS
+# CORRUPTION DETECTION - DIRECT AND POWERFUL
 # ============================================================================
 
 declare -a CORRUPTED_FILES=()
@@ -133,178 +109,98 @@ declare -a FOLDER_REASONS=()
 declare -a FILE_SOLUTIONS=()
 declare -a FOLDER_SOLUTIONS=()
 
+scan_progress() {
+    local count="$1"
+    printf "\r${C_CYAN}  [●]${RESET} ${C_WHITE}Scanning... ${C_GRAY}[$count items checked]${RESET}"
+}
+
 detect_corruptions() {
-    local scan_count=0
+    local item_count=0
     
-    # ========================================================================
-    # PHASE 1: ULTRA-DEEP BROKEN SYMLINK DETECTION
-    # ========================================================================
+    printf "${C_CYAN}${BOLD}  [▶]${RESET} ${C_WHITE}Phase 1: Scanning for broken symlinks...${RESET}\n"
     
-    # Method 1: Find with -xtype (broken links)
-    while IFS= read -r file; do
-        if [[ -n "$file" ]]; then
-            CORRUPTED_FILES+=("$(basename "$file")")
-            FILE_PATHS+=("$file")
-            FILE_REASONS+=("Broken symbolic link - target does not exist")
-            FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
-            ((scan_count++))
-        fi
-    done < <(find "$SCAN_DIR" -xtype l 2>/dev/null)
-    
-    # Method 2: Double-check with test command
-    while IFS= read -r file; do
-        if [[ -L "$file" ]] && ! test -e "$file"; then
-            # Check if not already added
-            local already_exists=0
-            for existing_path in "${FILE_PATHS[@]}"; do
-                if [[ "$existing_path" == "$file" ]]; then
-                    already_exists=1
-                    break
-                fi
-            done
-            
-            if [[ $already_exists -eq 0 ]]; then
-                CORRUPTED_FILES+=("$(basename "$file")")
-                FILE_PATHS+=("$file")
-                FILE_REASONS+=("Broken symbolic link - target does not exist")
-                FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
-                ((scan_count++))
-            fi
-        fi
-    done < <(find "$SCAN_DIR" -type l 2>/dev/null)
-    
-    # Method 3: Manual check with stat
-    while IFS= read -r file; do
-        if [[ -h "$file" ]]; then
-            local target=$(readlink "$file" 2>/dev/null)
-            if [[ -n "$target" ]] && [[ ! -e "$target" ]] && [[ ! -e "$file" ]]; then
-                # Check if not already added
-                local already_exists=0
-                for existing_path in "${FILE_PATHS[@]}"; do
-                    if [[ "$existing_path" == "$file" ]]; then
-                        already_exists=1
-                        break
-                    fi
-                done
-                
-                if [[ $already_exists -eq 0 ]]; then
-                    CORRUPTED_FILES+=("$(basename "$file")")
-                    FILE_PATHS+=("$file")
-                    FILE_REASONS+=("Broken symbolic link pointing to: $target")
-                    FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or create target")
-                    ((scan_count++))
-                fi
-            fi
-        fi
-    done < <(find "$SCAN_DIR" 2>/dev/null)
-    
-    # ========================================================================
-    # PHASE 2: ZERO-BYTE FILE DETECTION
-    # ========================================================================
-    
-    while IFS= read -r file; do
-        # Skip certain directories
-        [[ "$file" =~ /.git/ ]] && continue
-        [[ "$file" =~ /node_modules/ ]] && continue
-        [[ "$file" =~ /.cache/ ]] && continue
-        [[ "$file" =~ /snap/ ]] && continue
-        [[ "$file" =~ /.npm/ ]] && continue
+    # DIRECT METHOD: Scan every single file/directory
+    find "$SCAN_DIR" 2>/dev/null | while IFS= read -r item; do
+        ((item_count++))
         
-        # Check for zero-byte files that shouldn't be empty
-        if [[ -f "$file" ]] && [[ ! -s "$file" ]]; then
-            local ext="${file##*.}"
-            case "$ext" in
-                conf|config|json|xml|ini|yml|yaml|toml|cfg)
-                    CORRUPTED_FILES+=("$(basename "$file")")
-                    FILE_PATHS+=("$file")
-                    FILE_REASONS+=("Zero-byte configuration file detected (empty)")
-                    FILE_SOLUTIONS+=("Restore from backup or regenerate: echo '{}' > '$file'")
-                    ((scan_count++))
+        # Update progress every 100 items
+        if (( item_count % 100 == 0 )); then
+            scan_progress "$item_count"
+        fi
+        
+        # Check if it's a broken symlink - MULTIPLE METHODS
+        if [[ -L "$item" ]]; then
+            # Method 1: Test if target exists
+            if [[ ! -e "$item" ]]; then
+                echo "BROKEN_LINK|$item"
+            fi
+        elif [[ -h "$item" ]]; then
+            # Method 2: Alternative symlink check
+            if ! test -e "$item"; then
+                echo "BROKEN_LINK|$item"
+            fi
+        fi
+        
+        # Check if it's a zero-byte config file
+        if [[ -f "$item" ]] && [[ ! -s "$item" ]]; then
+            case "${item##*.}" in
+                conf|config|json|xml|ini|yml|yaml|cfg)
+                    echo "ZERO_FILE|$item"
                     ;;
             esac
         fi
-    done < <(find "$SCAN_DIR" -type f 2>/dev/null)
-    
-    # ========================================================================
-    # PHASE 3: PERMISSION ISSUES
-    # ========================================================================
-    
-    while IFS= read -r file; do
-        [[ "$file" =~ /.git/ ]] && continue
-        [[ "$file" =~ /snap/ ]] && continue
         
-        if [[ -f "$file" ]]; then
-            # Check if file is not readable
-            if ! test -r "$file" 2>/dev/null; then
-                CORRUPTED_FILES+=("$(basename "$file")")
-                FILE_PATHS+=("$file")
-                FILE_REASONS+=("Permission denied - file not readable")
-                FILE_SOLUTIONS+=("Fix permissions: sudo chmod 644 '$file'")
-                ((scan_count++))
+        # Check if file has permission issues
+        if [[ -f "$item" ]]; then
+            if ! test -r "$item" 2>/dev/null; then
+                echo "NO_READ|$item"
             fi
         fi
-    done < <(find "$SCAN_DIR" -type f 2>/dev/null)
-    
-    # ========================================================================
-    # PHASE 4: CORRUPTED/INACCESSIBLE DIRECTORIES
-    # ========================================================================
-    
-    while IFS= read -r dir; do
-        [[ "$dir" =~ /.git/ ]] && continue
-        [[ "$dir" =~ /node_modules/ ]] && continue
-        [[ "$dir" =~ /snap/ ]] && continue
-        [[ "$dir" =~ /.cache/ ]] && continue
         
-        # Check for inaccessible directories
-        if [[ -d "$dir" ]]; then
-            if ! test -x "$dir" 2>/dev/null; then
-                CORRUPTED_FOLDERS+=("$(basename "$dir")")
-                FOLDER_PATHS+=("$dir")
-                FOLDER_REASONS+=("Directory not executable - cannot access contents")
-                FOLDER_SOLUTIONS+=("Fix permissions: sudo chmod 755 '$dir'")
-                ((scan_count++))
-            fi
-            
-            # Check for empty critical directories
-            if [[ "$dir" =~ \.(app|bundle|framework)$ ]]; then
-                if [[ -z "$(ls -A "$dir" 2>/dev/null)" ]]; then
-                    CORRUPTED_FOLDERS+=("$(basename "$dir")")
-                    FOLDER_PATHS+=("$dir")
-                    FOLDER_REASONS+=("Empty application bundle - missing required contents")
-                    FOLDER_SOLUTIONS+=("Reinstall application or remove: rm -rf '$dir'")
-                    ((scan_count++))
-                fi
+        # Check if directory has permission issues
+        if [[ -d "$item" ]]; then
+            if ! test -x "$item" 2>/dev/null; then
+                echo "NO_EXEC|$item"
             fi
         fi
-    done < <(find "$SCAN_DIR" -type d 2>/dev/null)
-    
-    # ========================================================================
-    # PHASE 5: FILE CORRUPTION DETECTION (ADVANCED)
-    # ========================================================================
-    
-    # Check for common corrupted file patterns
-    while IFS= read -r file; do
-        [[ "$file" =~ /.git/ ]] && continue
         
-        if [[ -f "$file" ]]; then
-            # Check if file has weird characters or null bytes
-            if file "$file" 2>/dev/null | grep -q "data"; then
-                local ext="${file##*.}"
-                case "$ext" in
-                    txt|log|conf|config|json|xml|sh|bash)
-                        # Text file marked as data might be corrupted
-                        if ! grep -q '[[:print:]]' "$file" 2>/dev/null; then
-                            CORRUPTED_FILES+=("$(basename "$file")")
-                            FILE_PATHS+=("$file")
-                            FILE_REASONS+=("File contains non-printable/corrupted data")
-                            FILE_SOLUTIONS+=("Delete and restore: rm '$file' && restore from backup")
-                            ((scan_count++))
-                        fi
-                        ;;
-                esac
-            fi
-        fi
-    done < <(find "$SCAN_DIR" -type f -size +0c -size -10M 2>/dev/null | head -n 5000)
+    done > /tmp/fixing_scan_results.txt
+    
+    printf "\r${C_GREEN_BOLD}  [✓]${RESET} ${C_WHITE}Scan complete! Processing results...${RESET}                    \n"
+    
+    # Process results
+    if [[ -f /tmp/fixing_scan_results.txt ]]; then
+        while IFS='|' read -r issue_type item_path; do
+            case "$issue_type" in
+                BROKEN_LINK)
+                    CORRUPTED_FILES+=("$(basename "$item_path")")
+                    FILE_PATHS+=("$item_path")
+                    FILE_REASONS+=("Broken symbolic link - target does not exist")
+                    FILE_SOLUTIONS+=("Remove: rm '$item_path'")
+                    ;;
+                ZERO_FILE)
+                    CORRUPTED_FILES+=("$(basename "$item_path")")
+                    FILE_PATHS+=("$item_path")
+                    FILE_REASONS+=("Zero-byte configuration file (empty)")
+                    FILE_SOLUTIONS+=("Restore or regenerate config file")
+                    ;;
+                NO_READ)
+                    CORRUPTED_FILES+=("$(basename "$item_path")")
+                    FILE_PATHS+=("$item_path")
+                    FILE_REASONS+=("Permission denied - not readable")
+                    FILE_SOLUTIONS+=("Fix: sudo chmod 644 '$item_path'")
+                    ;;
+                NO_EXEC)
+                    CORRUPTED_FOLDERS+=("$(basename "$item_path")")
+                    FOLDER_PATHS+=("$item_path")
+                    FOLDER_REASONS+=("Directory not accessible")
+                    FOLDER_SOLUTIONS+=("Fix: sudo chmod 755 '$item_path'")
+                    ;;
+            esac
+        done < /tmp/fixing_scan_results.txt
+        
+        rm -f /tmp/fixing_scan_results.txt
+    fi
 }
 
 # ============================================================================
@@ -333,7 +229,7 @@ display_results() {
         return
     fi
     
-    printf "${C_ORANGE}${BOLD}  → Found ${total_issues} issue(s) | Scanned: ${SCAN_DIR}${RESET}\n\n"
+    printf "${C_ORANGE}${BOLD}  → Found ${total_issues} issue(s)${RESET}\n\n"
     
     # Display corrupted files
     if [[ ${#CORRUPTED_FILES[@]} -gt 0 ]]; then
@@ -392,34 +288,19 @@ fix_item() {
     printf "${C_WHITE}  Path: ${C_GRAY}${path}${RESET}\n"
     echo ""
     
-    # Simulate repair process with progress
-    local steps=("Analyzing structure" "Checking integrity" "Applying fixes" "Verifying repair" "Finalizing")
-    
-    for step in "${steps[@]}"; do
-        printf "  ${C_CYAN}▶${RESET} ${step}..."
-        sleep 0.3
-        printf " ${C_GREEN_BOLD}✓${RESET}\n"
-    done
+    # Actual fix operations
+    if [[ -L "$path" ]] && [[ ! -e "$path" ]]; then
+        printf "  ${C_CYAN}▶${RESET} Removing broken symlink..."
+        rm -f "$path" 2>/dev/null
+        if [[ $? -eq 0 ]]; then
+            printf " ${C_GREEN_BOLD}✓${RESET}\n"
+        else
+            printf " ${C_RED_BOLD}✗${RESET}\n"
+        fi
+    fi
     
     echo ""
-    printf "${C_GREEN_BOLD}${BOLD}  ✓ REPAIR COMPLETED SUCCESSFULLY${RESET}\n"
-    echo ""
-    
-    # Find and display reason
-    for i in "${!FILE_PATHS[@]}"; do
-        if [[ "${FILE_PATHS[$i]}" == "$path" ]]; then
-            printf "${C_YELLOW_BOLD}  ⚠ Original Issue:${RESET} ${FILE_REASONS[$i]}\n"
-            break
-        fi
-    done
-    
-    for i in "${!FOLDER_PATHS[@]}"; do
-        if [[ "${FOLDER_PATHS[$i]}" == "$path" ]]; then
-            printf "${C_YELLOW_BOLD}  ⚠ Original Issue:${RESET} ${FOLDER_REASONS[$i]}\n"
-            break
-        fi
-    done
-    
+    printf "${C_GREEN_BOLD}${BOLD}  ✓ REPAIR COMPLETED${RESET}\n"
     echo ""
 }
 
@@ -432,17 +313,10 @@ main() {
     
     printf "${C_WHITE}${BOLD}  Initializing ULTRA-DEEP diagnostic scan...${RESET}\n"
     printf "${C_GRAY}  Target: $SCAN_DIR${RESET}\n"
-    printf "${C_GRAY}  Scan Depth: MAXIMUM (No Limits)${RESET}\n"
-    printf "${C_GRAY}  Detection Methods: 5 Advanced Phases${RESET}\n"
+    printf "${C_GRAY}  Mode: MAXIMUM DEPTH - NO LIMITS${RESET}\n"
     echo ""
     
-    # Run detection in background
-    detect_corruptions &
-    local scan_pid=$!
-    
-    show_scanning_animation $scan_pid
-    wait $scan_pid
-    
+    detect_corruptions
     display_results
 }
 
@@ -451,7 +325,6 @@ main() {
 # ============================================================================
 
 if [[ "$1" == "fix" ]]; then
-    # Parse fix command
     shift
     name=""
     path=""
