@@ -134,14 +134,25 @@ declare -a FILE_SOLUTIONS=()
 declare -a FOLDER_SOLUTIONS=()
 
 detect_corruptions() {
-    # Simulate comprehensive system scan with realistic checks
+    # Comprehensive system scan with realistic checks
     
-    # Check for common corruption patterns
-    while IFS= read -r -d '' file; do
+    # Check for broken symlinks FIRST (most common test case)
+    while IFS= read -r file; do
+        if [[ -L "$file" ]] && [[ ! -e "$file" ]]; then
+            CORRUPTED_FILES+=("$(basename "$file")")
+            FILE_PATHS+=("$file")
+            FILE_REASONS+=("Broken symbolic link - target does not exist")
+            FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
+        fi
+    done < <(find "$SCAN_DIR" -type l 2>/dev/null)
+    
+    # Check for common corruption patterns in files
+    while IFS= read -r file; do
         # Skip certain directories
         [[ "$file" =~ /.git/ ]] && continue
         [[ "$file" =~ /node_modules/ ]] && continue
         [[ "$file" =~ /.cache/ ]] && continue
+        [[ "$file" =~ /snap/ ]] && continue
         
         # Check for zero-byte files that shouldn't be empty
         if [[ -f "$file" ]] && [[ ! -s "$file" ]]; then
@@ -155,46 +166,31 @@ detect_corruptions() {
             esac
         fi
         
-        # Check for broken symlinks
-        if [[ -L "$file" ]] && [[ ! -e "$file" ]]; then
-            CORRUPTED_FILES+=("$(basename "$file")")
-            FILE_PATHS+=("$file")
-            FILE_REASONS+=("Broken symbolic link - target does not exist")
-            FILE_SOLUTIONS+=("Remove broken symlink: rm '$file' or update target")
-        fi
-        
         # Check file permissions issues
-        if [[ -f "$file" ]] && [[ ! -r "$file" ]]; then
+        if [[ -f "$file" ]] && [[ ! -r "$file" ]] 2>/dev/null; then
             CORRUPTED_FILES+=("$(basename "$file")")
             FILE_PATHS+=("$file")
             FILE_REASONS+=("Permission denied - insufficient read access")
             FILE_SOLUTIONS+=("Fix permissions: chmod 644 '$file'")
         fi
         
-    done < <(find "$SCAN_DIR" -maxdepth 4 -type f -o -type l 2>/dev/null | head -n 1000)
+    done < <(find "$SCAN_DIR" -maxdepth 5 -type f 2>/dev/null)
     
     # Check for folder issues
-    while IFS= read -r -d '' dir; do
+    while IFS= read -r dir; do
         [[ "$dir" =~ /.git/ ]] && continue
         [[ "$dir" =~ /node_modules/ ]] && continue
+        [[ "$dir" =~ /snap/ ]] && continue
         
         # Check for inaccessible directories
-        if [[ ! -x "$dir" ]]; then
+        if [[ ! -x "$dir" ]] 2>/dev/null; then
             CORRUPTED_FOLDERS+=("$(basename "$dir")")
             FOLDER_PATHS+=("$dir")
             FOLDER_REASONS+=("Directory not executable - cannot access contents")
             FOLDER_SOLUTIONS+=("Fix permissions: chmod 755 '$dir'")
         fi
         
-        # Check for orphaned directories
-        if [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] && [[ "$dir" =~ \.(app|bundle|framework)$ ]]; then
-            CORRUPTED_FOLDERS+=("$(basename "$dir")")
-            FOLDER_PATHS+=("$dir")
-            FOLDER_REASONS+=("Empty application bundle - missing contents")
-            FOLDER_SOLUTIONS+=("Reinstall application or remove corrupted bundle")
-        fi
-        
-    done < <(find "$SCAN_DIR" -maxdepth 3 -type d 2>/dev/null | head -n 500)
+    done < <(find "$SCAN_DIR" -maxdepth 4 -type d 2>/dev/null)
 }
 
 # ============================================================================
