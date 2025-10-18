@@ -9,6 +9,31 @@ VERSION="1.0.0"
 SCAN_DIR="$HOME"
 
 # ============================================================================
+# ARGUMENT VALIDATION - FIRST PRIORITY
+# ============================================================================
+
+# STRICT VALIDATION: Only allow "fixing" or "fixing fix [name] path=[path]"
+if [[ $# -gt 0 ]]; then
+    if [[ "$1" != "fix" ]]; then
+        # Invalid command detected!
+        echo ""
+        echo -e "\033[1;38;5;196m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "\033[1;38;5;196m  ✗ ERROR: Invalid command '$1'\033[0m"
+        echo -e "\033[1;38;5;196m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo ""
+        echo -e "\033[1;38;5;255mValid Commands:\033[0m"
+        echo -e "  \033[38;5;51m→ fixing\033[0m                              (Run diagnostic scan)"
+        echo -e "  \033[38;5;51m→ fixing fix [name] path=[path]\033[0m       (Auto-repair item)"
+        echo ""
+        echo -e "\033[38;5;240mExamples:\033[0m"
+        echo -e "  \033[38;5;240m$ fixing\033[0m"
+        echo -e "  \033[38;5;240m$ fixing fix broken-link path=/home/user/Desktop/broken-link\033[0m"
+        echo ""
+        exit 1
+    fi
+fi
+
+# ============================================================================
 # COLOR DEFINITIONS & UI ELEMENTS
 # ============================================================================
 
